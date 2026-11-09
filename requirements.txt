@@ -1,0 +1,14 @@
+# Data processing and 15-minute time series
+pandas>=2.1,<3
+numpy>=1.26,<3
+
+# HTTP access and timezone data
+requests>=2.31,<3
+tzdata>=2025.2
+
+# Quantile regression for day-ahead price scenarios
+scikit-learn>=1.4,<2
+
+# Battery MILP formulation and HiGHS solver
+pyomo>=6.7,<7
+highspy>=1.7,<2
