@@ -1,0 +1,48 @@
+name: Chronological October holdout
+on:
+  push:
+    branches:
+      - feature/battery-optimization-foundation
+    paths:
+      - battery_chronological_holdout.py
+      - .github/workflows/battery_chronological_holdout.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  holdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyomo highspy
+      - name: Download validated historical prices
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+      - name: Generate daily risk-weight results once
+        run: |
+          python battery_risk_sensitivity.py \
+            --history input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --output output/battery_risk_sensitivity.json
+      - name: Select lambda on calibration days and evaluate holdout
+        run: |
+          python battery_chronological_holdout.py \
+            --input output/battery_risk_sensitivity.json \
+            --output output/battery_chronological_holdout.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: battery-chronological-holdout
+          path: |
+            output/battery_risk_sensitivity.json
+            output/battery_chronological_holdout.json
+          if-no-files-found: error

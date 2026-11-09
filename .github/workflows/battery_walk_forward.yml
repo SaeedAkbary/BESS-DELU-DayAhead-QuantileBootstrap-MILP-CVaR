@@ -1,0 +1,60 @@
+name: Multi-month walk-forward battery backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      through_month:
+        description: "Last fully completed month, YYYY-MM (2026-11 or later)"
+        required: true
+        default: "2026-11"
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  walk-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Download original validated historical prices
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+      - name: Validate and extend through completed month
+        env:
+          THROUGH_MONTH: ${{ inputs.through_month }}
+        run: |
+          python extend_price_history.py \
+            --history input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --through-month "$THROUGH_MONTH" \
+            --output output/extended_prices.csv
+      - name: Run chronological multi-month backtest
+        env:
+          THROUGH_MONTH: ${{ inputs.through_month }}
+        run: |
+          python run_battery_walk_forward.py \
+            --history output/extended_prices.csv \
+            --first-month 2026-10 \
+            --last-month "$THROUGH_MONTH" \
+            --output-dir output/rolling
+      - name: Upload reproducible inputs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: battery-walk-forward
+          path: |
+            output/extended_prices.csv
+            output/rolling/*.json
+          if-no-files-found: warn

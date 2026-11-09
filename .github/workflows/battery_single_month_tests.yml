@@ -1,0 +1,32 @@
+name: Single-month BESS report tests
+
+on:
+  push:
+    branches:
+      - feature/battery-optimization-foundation
+    paths:
+      - 'battery_monthly_scenarios.py'
+      - 'tests/test_battery_monthly_scenarios.py'
+      - 'battery_scenario_diagnostics.py'
+      - 'battery_optimization.py'
+      - 'battery_comparison.py'
+      - 'battery_october_benchmark.py'
+      - 'battery_risk_sensitivity.py'
+      - 'scenarios.py'
+      - 'requirements.txt'
+      - '.github/workflows/battery_single_month_tests.yml'
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run monthly report tests
+        run: python -m unittest -v tests.test_battery_monthly_scenarios

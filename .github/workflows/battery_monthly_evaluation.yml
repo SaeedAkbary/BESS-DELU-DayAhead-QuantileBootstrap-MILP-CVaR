@@ -1,0 +1,82 @@
+name: Rolling monthly battery evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Completed evaluation month (YYYY-MM); historical artifact must cover it"
+        required: true
+        default: "2026-10"
+        type: string
+  push:
+    branches:
+      - feature/battery-optimization-foundation
+    paths:
+      - battery_monthly_scenarios.py
+      - battery_scenario_diagnostics.py
+      - scenarios.py
+      - battery_optimization.py
+      - battery_walk_forward.py
+      - .github/workflows/battery_monthly_evaluation.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  monthly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Download validated price history
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+      - name: Run monthly evaluation with fixed historical artifact
+        env:
+          MONTH: ${{ inputs.month || '2026-10' }}
+        run: |
+          python battery_monthly_scenarios.py \
+            --history input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --month "$MONTH" \
+            --output "output/monthly_${MONTH}.json"
+      - name: Validate monthly dispatch output
+        env:
+          MONTH: ${{ inputs.month || '2026-10' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          month = os.environ["MONTH"]
+          report = json.loads(Path(f"output/monthly_{month}.json").read_text())
+          assert report["month"] == month
+          assert report["daily"], "No evaluated days"
+          assert report["summary"], "No profit summary"
+          for row in report["daily"]:
+              assert "oracle" in row
+              for weight in ("0.0", "0.25", "0.5", "1.0", "2.0"):
+                  schedule = row["dispatch"][weight]
+                  assert len(schedule["charge_mw"]) == 96
+                  assert len(schedule["discharge_mw"]) == 96
+                  assert len(schedule["energy_mwh"]) == 97
+                  assert isinstance(row[weight], (int, float))
+          print(f"Validated {len(report['daily'])} daily dispatch schedules")
+          PY
+      - name: Upload monthly evaluation
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-battery-evaluation
+          path: output/monthly_*.json
+          if-no-files-found: error

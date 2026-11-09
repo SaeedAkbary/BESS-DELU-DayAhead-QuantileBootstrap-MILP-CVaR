@@ -1,0 +1,62 @@
+# Audit October price scenarios using previously downloaded real price data.
+name: Audit October price scenarios
+
+on:
+  push:
+    paths:
+      - ".github/workflows/audit_risk.yml"
+      - "risk_audit.py"
+      - "tests/test_risk_audit.py"
+  workflow_dispatch:
+
+# Allow read-only access to source code and existing historical artifacts.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the repository.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Use a pinned Python version.
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Install the required Python packages.
+      - name: Install
+        run: python -m pip install -r requirements.txt
+
+      # Run unit tests before using real data.
+      - name: Run tests
+        run: python -m unittest -v tests.test_data tests.test_scenarios tests.test_risk_audit
+
+      # Reuse 13 months of validated real prices from an earlier Actions run.
+      - name: Download historical price CSV
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+
+      # Use actual October prices only to evaluate the 50 generated scenarios.
+      - name: Evaluate price tails and daily paths
+        run: |
+          python risk_audit.py \
+            --input input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --output output/risk_report.json
+
+      # Upload the auditable JSON report as a workflow artifact.
+      - name: Upload risk report
+        uses: actions/upload-artifact@v4
+        with:
+          name: DE-LU-October-risk-audit
+          path: output/risk_report.json
+          if-no-files-found: error

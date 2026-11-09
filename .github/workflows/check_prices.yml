@@ -1,0 +1,49 @@
+# Small integration run for real price downloads and timestamp validation.
+name: Check DE-LU prices
+
+# Run manually or when related files change.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/check_prices.yml"
+      - "data.py"
+      - "tests/test_data.py"
+      - "requirements.txt"
+
+# Read-only access; never commit downloaded data to main automatically.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the source.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Use a pinned Python version.
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Install required dependencies.
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      # Test timestamps and missing data without network access.
+      - name: Run tests
+        run: python -m unittest -v tests.test_data
+
+      # Fetch one real day including Berlin's autumn daylight-saving transition.
+      - name: Fetch one real day
+        run: python data.py --start 2026-10-25 --end 2026-10-25 --output output/DE-LU_2026-10-25.csv
+
+      # Upload CSV only after validation succeeds.
+      - name: Upload validated CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: DE-LU-2026-10-25-validated
+          path: output/DE-LU_2026-10-25.csv

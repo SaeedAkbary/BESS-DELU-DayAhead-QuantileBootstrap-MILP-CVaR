@@ -1,0 +1,111 @@
+name: Compare numerical results with main
+
+on:
+  push:
+    branches:
+      - refactor/project-layout
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - '*.py'
+      - '.github/workflows/compare_numerical_results.yml'
+  workflow_dispatch:
+
+jobs:
+  compare-numerical-results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out original main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: original
+      - name: Check out refactored version
+        uses: actions/checkout@v4
+        with:
+          path: refactored
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install model and solver dependencies
+        run: python -m pip install -r refactored/requirements.txt
+      - name: Compare numerical outputs from independent Python processes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          import numpy as np
+
+          model_code = """
+          import json
+          import numpy as np
+          from battery_optimization import Battery, solve_dispatch
+          from battery_uncertainty import paired_profit_bootstrap
+          from scenarios import sample_scenarios
+
+          median = np.array([50.0, 60.0, 55.0, 40.0])
+          residuals = np.array([[1., 2., 3., 4.], [-2., -1., 0., 1.]])
+          samples = sample_scenarios(
+              median, median - 10, median + 10, residuals,
+              seed=19, count=20,
+          )
+          battery = Battery(
+              capacity_mwh=2.0, power_mw=1.0,
+              eta_charge=0.95, eta_discharge=0.95,
+              initial_mwh=1.0,
+          )
+          dispatch = solve_dispatch(
+              np.array([[30., 70., 85., 20.],
+                        [35., 65., 80., 25.]]),
+              battery, risk_weight=0.5, alpha=0.8,
+          )
+          daily = [
+              {"selected": 12.0, "risk_neutral": 9.0},
+              {"selected": 5.0, "risk_neutral": 7.0},
+              {"selected": 20.0, "risk_neutral": 11.0},
+          ]
+          bootstrap = paired_profit_bootstrap(daily, seed=17, n_boot=250)
+          print(json.dumps({
+              "scenarios": samples.tolist(),
+              "dispatch": dispatch,
+              "bootstrap": bootstrap,
+          }, sort_keys=True))
+          """
+
+          def run(directory):
+              result = subprocess.run(
+                  [sys.executable, "-c", model_code],
+                  cwd=Path(directory).resolve(),
+                  text=True, capture_output=True, check=True,
+              )
+              return json.loads(result.stdout)
+
+          old = run("original")
+          new = run("refactored")
+
+          def compare(a, b, path="result"):
+              if isinstance(a, dict):
+                  assert isinstance(b, dict) and a.keys() == b.keys(), path
+                  for key in a:
+                      compare(a[key], b[key], f"{path}.{key}")
+              elif isinstance(a, list):
+                  assert isinstance(b, list) and len(a) == len(b), path
+                  for i, (x, y) in enumerate(zip(a, b)):
+                      compare(x, y, f"{path}[{i}]")
+              elif isinstance(a, (int, float)) and not isinstance(a, bool):
+                  assert isinstance(b, (int, float)) and np.isclose(
+                      a, b, rtol=1e-8, atol=1e-8
+                  ), f"{path}: {a} != {b}"
+              else:
+                  assert a == b, f"{path}: {a!r} != {b!r}"
+
+          compare(old, new)
+          print("PASS: original main and refactored branch numerical outputs match.")
+          print("Compared: seeded price scenarios, MILP dispatch and profits, bootstrap.")
+          PY
