@@ -1,0 +1,27 @@
+{
+  "economic_parameters_status": "Illustrative research assumptions; not verified market tariffs or asset costs",
+  "source_provenance": "Energy-Charts / Bundesnetzagentur historical DE-LU prices; retain source terms. Archived publication vintages unavailable.",
+  "battery": {
+    "capacity_mwh": 2, "power_mw": 1, "eta_charge": 0.95,
+    "eta_discharge": 0.95, "initial_mwh": 1,
+    "variable_cost_eur_mwh": 0,
+    "purchase_fee_eur_mwh": 1,
+    "sale_fee_eur_mwh": 1,
+    "execution_cost_eur_mwh": 0.5,
+    "degradation_eur_mwh_discharged": 10
+  },
+  "alpha": 0.95, "seed": 42, "scenario_count": 50,
+  "selection_rule": "net_downside", "downside_penalty": 1,
+  "experiments": [
+    {"name": "purchase_fee_5", "kind": "one_at_a_time", "overrides": {"purchase_fee_eur_mwh": 5}},
+    {"name": "sale_fee_5", "kind": "one_at_a_time", "overrides": {"sale_fee_eur_mwh": 5}},
+    {"name": "degradation_30", "kind": "one_at_a_time", "overrides": {"degradation_eur_mwh_discharged": 30}},
+    {"name": "rte_80", "kind": "one_at_a_time", "overrides": {"round_trip_efficiency": 0.8}},
+    {"name": "profit_selector", "kind": "one_at_a_time", "overrides": {"selection_rule": "profit"}},
+    {"name": "scenarios_100", "kind": "one_at_a_time", "overrides": {"scenario_count": 100}},
+    {"name": "high_uncertainty", "kind": "one_at_a_time", "overrides": {"volatility_scale": 1.5}},
+    {"name": "low_uncertainty", "kind": "one_at_a_time", "overrides": {"volatility_scale": 0.5}},
+    {"name": "joint_cost_stress", "kind": "joint_stress", "overrides": {"purchase_fee_eur_mwh": 5, "sale_fee_eur_mwh": 5, "degradation_eur_mwh_discharged": 100, "round_trip_efficiency": 0.8}},
+    {"name": "prohibitive_cost", "kind": "one_at_a_time", "overrides": {"degradation_eur_mwh_discharged": 10000}}
+  ]
+}

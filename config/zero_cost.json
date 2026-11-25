@@ -1,0 +1,6 @@
+{
+  "economic_parameters_status": "Zero-cost historical research baseline, not a verified asset",
+  "battery": {"capacity_mwh": 2, "power_mw": 1, "eta_charge": 0.95, "eta_discharge": 0.95, "initial_mwh": 1},
+  "seed": 42, "scenario_count": 50, "alpha": 0.95,
+  "selection_rule": "profit", "downside_penalty": 0
+}
