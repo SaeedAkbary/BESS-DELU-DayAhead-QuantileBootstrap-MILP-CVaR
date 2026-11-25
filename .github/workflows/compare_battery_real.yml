@@ -1,0 +1,57 @@
+name: Compare battery dispatch on real October prices
+
+on:
+  push:
+    branches:
+      - feature/battery-optimization-foundation
+    paths:
+      - battery_optimization.py
+      - battery_comparison.py
+      - .github/workflows/compare_battery_real.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install scenario and optimization dependencies
+        run: python -m pip install -r requirements.txt pyomo highspy
+      - name: Download validated DE-LU historical prices
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+      - name: Generate October 15 scenarios without October training prices
+        run: |
+          python scenarios.py \
+            --input input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --date 2026-10-15 \
+            --output output/scenarios_2026-10-15.csv
+      - name: Compare three fixed schedules on October 15 realized prices
+        run: |
+          python battery_comparison.py \
+            --scenarios output/scenarios_2026-10-15.csv \
+            --history input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --capacity-mwh 2 --power-mw 1 \
+            --eta-charge 0.95 --eta-discharge 0.95 \
+            --initial-mwh 1 --risk-weight 1 --alpha 0.95 \
+            --output output/battery_comparison_2026-10-15.json
+      - name: Upload reproducible dispatch and profit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: battery-comparison-real-2026-10-15-illustrative
+          path: |
+            output/battery_comparison_2026-10-15.json
+            output/scenarios_2026-10-15.csv
+          if-no-files-found: error

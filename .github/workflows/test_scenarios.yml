@@ -1,0 +1,64 @@
+# Test scenario generation with previously downloaded real data.
+name: Test one-day price scenarios
+
+# Run when code or workflow definitions change.
+on:
+  push:
+    paths:
+      - ".github/workflows/test_scenarios.yml"
+      - "scenarios.py"
+      - "tests/test_scenarios.py"
+  workflow_dispatch:
+
+# Read access to Actions is required to retrieve prior artifacts.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the project source.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up Python.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Install pandas, requests and scikit-learn dependencies.
+      - name: Install Python packages
+        run: python -m pip install -r requirements.txt
+
+      # Test daily path preservation, leakage prevention and DST handling.
+      - name: Run unit tests
+        run: python -m unittest -v tests.test_data tests.test_scenarios
+
+      # Retrieve the previously validated 13-month historical price artifact.
+      - name: Download validated historical data
+        uses: actions/download-artifact@v4
+        with:
+          name: DE-LU-validated-months
+          run-id: 42305243042
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: input/
+
+      # Generate scenarios for one regular October 2026 day.
+      - name: Generate 50 day-ahead scenarios
+        run: |
+          python scenarios.py \
+            --input input/prices_DE-LU_2025-10_to_2026-10.csv \
+            --date 2026-10-15 \
+            --output output/scenarios_2026-10-15.csv
+
+      # Upload scenario prices without including the target day's actual prices.
+      - name: Save scenario CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: DE-LU-50-scenarios-2026-10-15
+          path: output/scenarios_2026-10-15.csv
+          if-no-files-found: error
