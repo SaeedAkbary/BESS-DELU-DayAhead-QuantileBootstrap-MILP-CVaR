@@ -4,16 +4,13 @@ A reproducible Python research and portfolio project for **day-ahead battery ene
 
 > **Status:** Research demonstration with automated tests and a completed October 2026 historical simulation. This is **not** a verified live trading system or a claim of commercial profitability. October 2026 was used during development and is **not** an untouched out-of-sample holdout.
 
-## Commercial backtesting upgrade
+## Project workflow
 
-The framework now asks whether battery arbitrage remains attractive after
-explicit costs, whether CVaR dispatch improves realized downside performance,
-and whether those conclusions survive chronological evaluation and sensitivity
-analysis. It preserves the original MILP, scenario method and October evidence.
+Historical electricity prices are validated and used to generate price scenarios. A battery dispatch model then chooses charging and discharging schedules under physical constraints and operating costs. The schedules are evaluated against observed prices to compare net profit, downside risk, and sensitivity to battery and market assumptions.
 
-- Separate purchase/sale fees, execution costs, legacy variable O&M and linear
+- Separate purchase/sale fees, execution costs, variable O&M and linear
   degradation per grid-side MWh discharged enter **every** optimization and
-  historical evaluation with matching definitions. Defaults remain zero.
+  historical evaluation with matching definitions. Costs are configurable.
 - Daily component reconciliation, throughput, net profit per discharged MWh,
   exact-tail empirical VaR/CVaR, negative-day frequency and drawdown accompany
   zero dispatch, risk-neutral, CVaR and unattainable oracle comparisons.
@@ -29,9 +26,8 @@ analysis. It preserves the original MILP, scenario method and October evidence.
   vintages are verified, so chronological simulation is not proof of auction
   tradability. No completed November 2026 result is claimed.
 
-See [commercial methodology](docs/COMMERCIAL_METHODOLOGY.md),
-[repository audit](docs/COMMERCIAL_AUDIT.md) and
-[technical change log](docs/COMMERCIAL_CHANGELOG.md).
+See [commercial methodology](docs/COMMERCIAL_METHODOLOGY.md) and
+[executed results](docs/COMMERCIAL_RESULTS.md).
 
 ```bash
 python -m pip install -r requirements.txt
@@ -51,7 +47,7 @@ directories containing results are protected from overwrite.
 
 **October 2026 development simulation: 30 eligible days, not live revenues.**
 The figures below use the [executed results](docs/commercial_results/summary.json)
-from the original Energy-Charts / Bundesnetzagentur DE-LU history. Costs are
+from the Energy-Charts / Bundesnetzagentur DE-LU history. Costs are
 illustrative; 25 October is excluded because of the DST transition.
 
 ### From gross arbitrage to net profit
@@ -133,7 +129,7 @@ The example system is **illustrative**, not a verified physical asset:
 | Initial and terminal state of charge | 1 MWh |
 | Variable operating cost | 0 EUR/MWh (simplification) |
 
-The optimization enforces a cyclic daily state of charge rather than interday carryover. Configurable fees and linear discharge degradation are now represented. Imbalance costs, availability, network constraints and nonlinear aging remain outside the model.
+The optimization enforces a cyclic daily state of charge rather than interday carryover. Configurable fees and linear discharge degradation are represented. Imbalance costs, availability, network constraints and nonlinear aging remain outside the model.
 
 ## Mathematical formulations
 
@@ -158,8 +154,8 @@ The optimization in [`src/battery_optimization.py`](src/battery_optimization.py)
 | $`E^{\mathrm{init}}`$ | MWh | Prescribed initial stored energy (`initial_mwh`). |
 | $`E^{\mathrm{term}}`$ | MWh | Prescribed final stored energy (`terminal_mwh`), defaulting to $`E^{\mathrm{init}}`$. |
 | $`c^{\mathrm{var}}`$ | EUR/MWh | Operating cost per MWh charged **plus** per MWh discharged (`variable_cost_eur_mwh`). |
-| $`c^c`$ | EUR/MWh charged | Legacy variable O&M + purchase fee + execution cost. |
-| $`c^d`$ | EUR/MWh discharged | Legacy variable O&M + sale fee + execution cost + discharge degradation. |
+| $`c^c`$ | EUR/MWh charged | Variable O&M + purchase fee + execution cost. |
+| $`c^d`$ | EUR/MWh discharged | Variable O&M + sale fee + execution cost + discharge degradation. |
 | $`\pi_{s,t}`$ | EUR/MWh | Electricity price at interval $`t`$ in scenario $`s`$. |
 | $`w_s`$ | dimensionless | Scenario probability: $`w_s\ge 0`$, $`\sum_s w_s=1`$; uniform $`1/K`$ by default. |
 | $`\bar\pi_t`$ | EUR/MWh | Mean scenario price used by the `deterministic()` wrapper: $`K^{-1}\sum_s\pi_{s,t}`$, **unweighted** even if scenario probabilities are separately supplied. |
@@ -270,12 +266,12 @@ This risk-neutral objective is equivalent to a deterministic optimization using 
 - Typical demonstration settings: $`N=96`$, $`K=50`$, $`\Delta t=0.25`$ h, $`\alpha=0.95`$, and $`\lambda\in\{0,0.25,0.5,1,2\}`$. The number of intervals/scenarios is determined by the supplied price array, not hard-coded in the MILP.
 
 
-## Executed commercial rerun — October 2026 development data
+## Historical backtest — October 2026
 
-The upgrade was executed on the original price artifact for 30 eligible days,
+The historical backtest covers 30 eligible delivery days,
 with 11 illustrative commercial configurations. The base case uses purchase
 and sale fees of 1 EUR/MWh each, execution cost of 0.5 EUR/MWh on each side,
-discharge degradation of 10 EUR/MWh, and zero legacy O&M.
+discharge degradation of 10 EUR/MWh, and zero variable O&M.
 
 | Strategy | Simulated net P&L EUR | Empirical 95% loss CVaR EUR |
 | --- | ---: | ---: |
@@ -284,7 +280,7 @@ discharge degradation of 10 EUR/MWh, and zero legacy O&M.
 | CVaR, prespecified lambda=1 | 4,956.47 | 24.88 |
 | Unattainable oracle | 8,741.97 | -75.50 |
 
-These new risk statistics use exact fractional-tail CVaR. The paired iid-day
+These risk statistics use exact fractional-tail CVaR. The paired iid-day
 95% interval for the mean lambda=1 minus risk-neutral net-P&L difference was
 **[-0.27, 12.28] EUR/day**, which includes zero and ignores serial dependence.
 The joint cost/efficiency stress yielded losses for both policies; prohibitive
@@ -296,7 +292,7 @@ commercial and 210 zero-cost schedules against the source prices and physical
 constraints. Multi-month empirical selection remains pending; November is
 incomplete. See [executed results, charts and limitations](docs/COMMERCIAL_RESULTS.md).
 
-## Original historical results — October 2026 (preserved)
+## Zero-cost benchmark — October 2026
 
 The end-to-end monthly scenario and optimization pipeline was executed on **30 eligible delivery days**. October 25 (daylight-saving transition, 100 intervals) was excluded. September 2026 was used for scenario calibration.
 
@@ -314,7 +310,7 @@ The end-to-end monthly scenario and optimization pipeline was executed on **30 e
 
 ## October 2026 evaluation charts
 
-The following charts visualize the documented October experiment for an illustrative 2 MWh / 1 MW battery. They use the aggregate figures in [ROLLING_OCTOBER_RESULTS.md](docs/ROLLING_OCTOBER_RESULTS.md), not newly generated dispatch or price time series.
+The following charts visualize the documented October experiment for an illustrative 2 MWh / 1 MW battery. They use the aggregate figures in [ROLLING_OCTOBER_RESULTS.md](docs/ROLLING_OCTOBER_RESULTS.md), rather than interval-level dispatch or price time series.
 
 ![Simulated gross arbitrage profit by CVaR risk weight](docs/figures/october_profit.svg)
 
@@ -358,7 +354,7 @@ The [walk-forward protocol](docs/WALK_FORWARD_PROTOCOL.md) specifies monthly mod
 
 ## Repository layout
 
-Core implementation lives in `src/`, unit and compatibility tests in `tests/`, command-line utilities in `scripts/`, and research notes and figures in `docs/`. Root-level Python files remain as backward-compatible import and command-line entry points so existing commands and GitHub Actions continue to work.
+Core implementation lives in `src/`, unit and compatibility tests in `tests/`, command-line utilities in `scripts/`, and research notes and figures in `docs/`. Root-level Python files provide import and command-line entry points.
 
 ```text
 src/       Battery models, scenario generation, and data validation
